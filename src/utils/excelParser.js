@@ -1,6 +1,5 @@
 import * as XLSX from '@e965/xlsx'
-
-console.log('### CURRENT MAINTENANCE PARSER BUILD ACTIVE ###')
+import { formatReportingPeriod } from './dashboardModel'
 
 export const TQI_THRESHOLD = 0.6
 
@@ -8,12 +7,28 @@ export function readWorkbook(buffer) {
   return XLSX.read(buffer, { type: 'array' })
 }
 
+// A cell whose number format is a date/time (for example "mmm-yy") keeps its formatted text.
+const isDateFormat = (z) =>
+  typeof z === 'string' && /[ymdhs]/i.test(z.replace(/"[^"]*"|\[[^\]]*\]|\\./g, ''))
+
+const MONTH_TEXT = /^[A-Za-z]{3,9}[\s\-.']*\d{2,4}$/
+
 export function worksheetToRows(worksheet) {
-  return XLSX.utils.sheet_to_json(worksheet, {
-    header: 1,
-    defval: '',
-    raw: false,
+  // Only the left part of a sheet holds data; some sheets declare a range that runs to column XFC.
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  range.e.c = Math.min(range.e.c, 24)
+  range.e.r = Math.min(range.e.r, 150)
+  const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: false, range })
+  // Formatted text hides precision (94.9% is displayed as 95%), so numbers use their stored value.
+  rows.forEach((row, r) => {
+    row.forEach((cell, c) => {
+      const source = worksheet[XLSX.utils.encode_cell({ r: range.s.r + r, c: range.s.c + c })]
+      if (!source || source.t !== 'n') return
+      // A date cell keeps its text only when that text already names a month ("Aug-26"); otherwise its serial number is kept.
+      if (!isDateFormat(source.z) || !MONTH_TEXT.test(String(cell).trim())) row[c] = source.v
+    })
   })
+  return rows
 }
 
 export function normalizeLabel(value) {
@@ -252,12 +267,6 @@ function classTotal(values) {
 }
 
 export function parseDashboardData(rows) {
-  rows.slice(29, 35).forEach((row, index) => {
-    console.error(`KPI ROW ${index + 29}:`, JSON.stringify(row))
-  })
-  rows.slice(16, 29).forEach((row, index) => {
-    console.error(`TRACK CLASS ROW ${index + 16}:`, JSON.stringify(row))
-  })
   const normalizeLabel = (value) =>
     String(value ?? '')
       .trim()
@@ -303,7 +312,7 @@ export function parseDashboardData(rows) {
   }
 
   const data = {
-    reportingPeriod: findValue('Reporting Period'),
+    reportingPeriod: formatReportingPeriod(findValue('Reporting Period')),
     routeAvailability: parsePercent(findValue('Route Avilability - TSR%')),
     incidents: {
       safety: parseNum(findValue('Safety Incident')),
@@ -345,17 +354,6 @@ export function parseDashboardData(rows) {
       machineAvailability: parsePercent(findValue('Machince avilability %')),
     },
   }
-
-  console.error('FINAL BASIC METRICS:', {
-    routeAvailability: data.routeAvailability,
-    corrective: data.maintenance.corrective,
-    preventive: data.maintenance.preventive,
-    predictive: data.maintenance.predictive,
-    total: data.maintenance.total,
-    maintenanceCompliance: data.maintenanceCompliance,
-    yearlyBrokenRail: data.yearlyBrokenRail,
-    llp: data.llp,
-  })
 
   const tsr = parseTsrTable(rows)
   data.tqi = parseTqi(rows)

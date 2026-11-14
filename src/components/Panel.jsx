@@ -6,7 +6,7 @@ export default function Panel({ title, subtitle, children, className = '', actio
           <h2 className="panel__title">{title}</h2>
           {subtitle ? <p className="panel__subtitle">{subtitle}</p> : null}
         </div>
-        {actions ? <div className="panel__actions">{actions}</div> : null}
+        {actions ? <div className="panel__actions x-act">{actions}</div> : null}
       </header>
       <div className="panel__body">{children}</div>
     </section>

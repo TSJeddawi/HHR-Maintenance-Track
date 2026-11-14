@@ -31,6 +31,31 @@ const MONTH_NAMES = [
   'December',
 ]
 
+// Turns whatever the workbook holds in the reporting-period cell into "Month YYYY":
+// an Excel date serial (46235), a date text ("Aug-26", "Aug 2026") or an already complete "August 2026".
+export function formatReportingPeriod(value) {
+  if (value == null) return value
+  const text = String(value).trim()
+  if (text === '') return value
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const serial = Number(text)
+    if (serial >= 1000 && serial < 2958466) {
+      const date = new Date(Math.round((serial - 25569) * 86400000)) // 25569 = days from 1899-12-30 to 1970-01-01
+      return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`
+    }
+    return text
+  }
+  const match = text.match(/^([A-Za-z]{3,9})[\s\-.']*(\d{2}|\d{4})$/)
+  if (match) {
+    const index = MONTH_NAMES.findIndex((name) => name.toLowerCase().startsWith(match[1].toLowerCase().slice(0, 3)))
+    if (index >= 0 && (match[1].length <= 3 || MONTH_NAMES[index].toLowerCase().startsWith(match[1].toLowerCase()))) {
+      const year = match[2].length === 2 ? 2000 + Number(match[2]) : Number(match[2])
+      return `${MONTH_NAMES[index]} ${year}`
+    }
+  }
+  return text
+}
+
 function parseMonthYear(period) {
   const match = String(period ?? '').trim().match(/^([A-Za-z]+)\s+(\d{4})$/)
   if (!match) return null
@@ -122,8 +147,8 @@ export function viewFromParsed(data, previousData = null) {
         title: 'Route Availability - TSR %',
         value: formatDisplayNumber(data.routeAvailability, 1),
         unit: '%',
-        hint: 'Target ≥ 98.0%',
-        tone: data.routeAvailability >= 98 ? 'positive' : 'warning',
+        hint: null,
+        tone: 'default',
       },
       {
         id: 'safety-incidents',
@@ -200,9 +225,9 @@ export function viewFromParsed(data, previousData = null) {
       },
     ],
     mtbf: [
-      { asset: 'Fence', hours: data.mtbf.fence },
-      { asset: 'Track', hours: data.mtbf.track },
-      { asset: 'Turnout', hours: data.mtbf.turnout },
+      { asset: 'Fence', hours: data.mtbf.fence, previousHours: previousData?.mtbf?.fence ?? null },
+      { asset: 'Track', hours: data.mtbf.track, previousHours: previousData?.mtbf?.track ?? null },
+      { asset: 'Turnout', hours: data.mtbf.turnout, previousHours: previousData?.mtbf?.turnout ?? null },
     ],
     tqiSeries: data.tqi.periods.map((period, index) => ({
       month: period,

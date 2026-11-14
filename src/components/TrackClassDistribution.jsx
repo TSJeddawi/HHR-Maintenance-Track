@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Panel from './Panel'
+import { placeTooltip } from '../utils/tooltipPlacement'
 
 const TRACK_CLASSES = ['A', 'B', 'C', 'D', 'E']
 
@@ -15,19 +17,27 @@ export default function TrackClassDistribution({ data }) {
   const [tooltip, setTooltip] = useState(null)
   const loaded = hasClassData(data)
 
-  function updateTooltip(event, nextTooltip) {
-    const offset = 14
-    const width = 168
-    const height = 86
-    const x = Math.min(event.clientX + offset, window.innerWidth - width - 8)
-    const y = Math.min(event.clientY + offset, window.innerHeight - height - 8)
+  const tooltipRef = useRef(null)
 
-    setTooltip({
-      ...nextTooltip,
-      x: Math.max(8, x),
-      y: Math.max(8, y),
-    })
+  function updateTooltip(event, nextTooltip) {
+    setTooltip({ ...nextTooltip, pointerX: event.clientX, pointerY: event.clientY })
   }
+
+  // Measure the real tooltip size, then place it so it stays fully in the viewport.
+  useLayoutEffect(() => {
+    const node = tooltipRef.current
+    if (!tooltip || !node) return
+    const { width, height } = node.getBoundingClientRect()
+    const viewport = document.documentElement
+    const spot = placeTooltip(
+      { x: tooltip.pointerX, y: tooltip.pointerY },
+      { width, height },
+      { width: viewport.clientWidth, height: viewport.clientHeight },
+    )
+    node.style.left = `${spot.left}px`
+    node.style.top = `${spot.top}px`
+    node.style.visibility = 'visible'
+  }, [tooltip])
 
   return (
     <Panel
@@ -102,19 +112,23 @@ export default function TrackClassDistribution({ data }) {
         {loaded ? null : <p className="empty-note empty-note--overlay">No data loaded</p>}
       </div>
 
-      {tooltip ? (
-        <div
-          className="class-tooltip"
-          role="tooltip"
-          style={{ left: tooltip.x, top: tooltip.y }}
-        >
-          <p className="class-tooltip__class">Class {tooltip.cls}</p>
-          <p className="class-tooltip__value">{tooltip.value}%</p>
-          <p className="class-tooltip__meta">
-            {tooltip.type} – {tooltip.line}
-          </p>
-        </div>
-      ) : null}
+      {tooltip
+        ? createPortal(
+            <div
+              ref={tooltipRef}
+              className="class-tooltip"
+              role="tooltip"
+              style={{ left: 0, top: 0, visibility: 'hidden' }}
+            >
+              <p className="class-tooltip__class">Class {tooltip.cls}</p>
+              <p className="class-tooltip__value">{tooltip.value}%</p>
+              <p className="class-tooltip__meta">
+                {tooltip.type} – {tooltip.line}
+              </p>
+            </div>,
+            document.body,
+          )
+        : null}
     </Panel>
   )
 }

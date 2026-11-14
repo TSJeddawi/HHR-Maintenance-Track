@@ -210,7 +210,6 @@ function App() {
           onPeriodChange={handlePeriodChange}
           fileInputRef={fileInputRef}
           onExcelFile={handleExcelFile}
-          showExcelUpload={!importedMonths}
         />
 
         <section className="kpi-grid" aria-label="Top performance indicators">
@@ -220,16 +219,18 @@ function App() {
         </section>
 
         <section className="route-row">
-          <RouteOverview stations={stations} tsrs={view.tsrs} maxKp={routeMaxKp} />
-          <RailQualityPanel
-            yearlyBrokenRail={view.railQuality?.yearlyBrokenRail}
-            llp={view.railQuality?.llp}
-          />
+          <RouteOverview key={reportingPeriod} stations={stations} tsrs={view.tsrs} maxKp={routeMaxKp} />
           <TrackClassDistribution data={view.trackClassDistribution} />
         </section>
 
         <section className="bottom-grid">
-          <MtbfPanel data={view.mtbf} />
+          <div className="x-lcol">
+            <MtbfPanel data={view.mtbf} />
+            <RailQualityPanel
+              yearlyBrokenRail={view.railQuality?.yearlyBrokenRail}
+              llp={view.railQuality?.llp}
+            />
+          </div>
           <TqiChart data={view.tqiSeries} />
           <BottomKpiPanel items={view.bottomKpis} />
         </section>
