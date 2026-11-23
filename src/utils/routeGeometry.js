@@ -242,3 +242,20 @@ export function restrictedLength(items, track) {
 export function toggleSelection(current, id) {
   return current === id ? null : id
 }
+
+// A click that lands on one marker toggles it. A click that lands on several overlapping markers
+// walks through each of them, then clears, so none of them is stuck under the others.
+export function chooseMarker(current, ids, clickedId) {
+  const unique = []
+  ;(ids || []).forEach((hit) => {
+    if (hit != null && !unique.includes(hit)) unique.push(hit)
+  })
+  if (clickedId != null && !unique.includes(clickedId)) unique.unshift(clickedId)
+  if (!unique.length) return null
+  if (unique.length === 1) return toggleSelection(current, unique[0])
+  const start = Math.max(0, unique.indexOf(clickedId))
+  const ordered = unique.slice(start).concat(unique.slice(0, start))
+  if (current == null || !ordered.includes(current)) return ordered[0]
+  const index = ordered.indexOf(current)
+  return index === ordered.length - 1 ? null : ordered[index + 1]
+}

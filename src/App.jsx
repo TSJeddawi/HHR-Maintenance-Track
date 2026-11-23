@@ -5,7 +5,6 @@ import KpiCard from './components/KpiCard'
 import BottomKpiPanel from './components/BottomKpiPanel'
 import MtbfPanel from './components/MtbfPanel'
 import TqiChart from './components/TqiChart'
-import TrackClassDistribution from './components/TrackClassDistribution'
 import RouteOverview from './components/RouteOverview'
 import RailQualityPanel from './components/RailQualityPanel'
 import { routeMaxKp, stations } from './data/route'
@@ -220,7 +219,6 @@ function App() {
 
         <section className="route-row">
           <RouteOverview key={reportingPeriod} stations={stations} tsrs={view.tsrs} maxKp={routeMaxKp} />
-          <TrackClassDistribution data={view.trackClassDistribution} />
         </section>
 
         <section className="bottom-grid">

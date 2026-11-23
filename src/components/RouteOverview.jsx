@@ -9,6 +9,7 @@ import {
   SPEED_COLORS,
   TRAINS,
   describeTsr,
+  chooseMarker,
   layoutRoute,
   lightLevels,
   mixColor,
@@ -34,6 +35,7 @@ export default function RouteOverview({ stations, tsrs = [], maxKp }) {
   const svgRef = useRef(null)
   const [width, setWidth] = useState(0)
   const [selectedId, setSelectedId] = useState(null)
+  const [filterId, setFilterId] = useState(null)
   const [hotId, setHotId] = useState(null)
   const [paused, setPaused] = useState(false)
   const pausedRef = useRef(false)
@@ -76,14 +78,18 @@ export default function RouteOverview({ stations, tsrs = [], maxKp }) {
 
   const selectedItem = items.find((item) => item.id === selectedId) ?? null
   const selection = selectedItem && layout ? selectionGeometry(layout, selectedItem.j) : null
+  const filtered = Boolean(filterId) && items.some((item) => item.id === filterId)
+  const visibleItems = filtered ? items.filter((item) => item.id === filterId) : items
   useEffect(() => {
     selJRef.current = selectedItem ? selectedItem.j : null
   })
-  const toggle = (id) => setSelectedId((current) => toggleSelection(current, id))
 
   useEffect(() => {
     function onKey(event) {
-      if (event.key === 'Escape') setSelectedId(null)
+      if (event.key === 'Escape') {
+        setSelectedId(null)
+        setFilterId(null)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -140,6 +146,52 @@ export default function RouteOverview({ stations, tsrs = [], maxKp }) {
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [layout, items])
+
+  function pointFromEvent(event) {
+    const svg = svgRef.current
+    if (!svg) return null
+    const rect = svg.getBoundingClientRect()
+    if (!rect.width || !rect.height) return null
+    const box = svg.viewBox.baseVal
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * box.width,
+      y: ((event.clientY - rect.top) / rect.height) * box.height,
+    }
+  }
+
+  function idsAtPoint(point) {
+    if (!layout) return []
+    const signIds = []
+    layout.signs.forEach((sign) => {
+      const dx = point.x - sign.sx
+      const dy = point.y - sign.sy
+      if (dx * dx + dy * dy <= layout.signR * layout.signR) signIds.push(items[sign.j].id)
+    })
+    if (signIds.length) return signIds
+    const spanIds = []
+    layout.spans.forEach((span) => {
+      const top = layout.laneY[span.track - 1] - 1.5
+      const bottom = top + layout.laneH + 3
+      if (point.x >= span.x && point.x <= span.x + span.w && point.y >= top && point.y <= bottom) {
+        spanIds.push(items[span.j].id)
+      }
+    })
+    return spanIds
+  }
+
+  function onMarkerClick(event, id) {
+    event.stopPropagation()
+    const point = pointFromEvent(event)
+    const next = chooseMarker(filterId, point ? idsAtPoint(point) : [], id)
+    setFilterId(next)
+    setSelectedId(next)
+  }
+
+  function onRowToggle(id) {
+    const next = toggleSelection(selectedId, id)
+    setSelectedId(next)
+    if (next == null) setFilterId(null)
+  }
 
   function togglePause() {
     pausedRef.current = !pausedRef.current
@@ -292,7 +344,7 @@ export default function RouteOverview({ stations, tsrs = [], maxKp }) {
                   fillOpacity=".6"
                   stroke={on ? NAVY : 'none'}
                   strokeWidth="1.6"
-                  onClick={() => toggle(items[s.j].id)}
+                  onClick={(event) => onMarkerClick(event, items[s.j].id)}
                   onMouseEnter={() => setHotId(items[s.j].id)}
                   onMouseLeave={() => setHotId(null)}
                 >
@@ -334,7 +386,7 @@ export default function RouteOverview({ stations, tsrs = [], maxKp }) {
                   data-sign={s.j}
                   data-hot={hotId === items[s.j].id ? '' : undefined}
                   className="route__hit"
-                  onClick={() => toggle(items[s.j].id)}
+                  onClick={(event) => onMarkerClick(event, items[s.j].id)}
                   onMouseEnter={() => setHotId(items[s.j].id)}
                   onMouseLeave={() => setHotId(null)}
                 >
@@ -437,10 +489,11 @@ export default function RouteOverview({ stations, tsrs = [], maxKp }) {
       </div>
 
       <TsrTable
-        items={items}
+        items={visibleItems}
         selectedId={selectedId}
         hotId={hotId}
-        onToggle={toggle}
+        filtered={filtered}
+        onToggle={onRowToggle}
         onHover={setHotId}
       />
 
